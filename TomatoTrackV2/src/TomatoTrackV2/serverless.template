@@ -5,17 +5,46 @@
   "Parameters": {},
   "Conditions": {},
   "Resources": {
+      "TomatoLogs": {
+        "Type": "AWS::DynamoDB::Table",
+        "Properties": {
+          "TableName": "TomatoLogs",
+          "BillingMode": "PAY_PER_REQUEST",
+          "AttributeDefinitions": [
+            {
+              "AttributeName": "LogId",
+              "AttributeType": "S"
+            }
+          ],
+          "KeySchema": [
+            {
+              "AttributeName": "LogId",
+              "KeyType": "HASH"
+            }
+          ],
+          "StreamSpecification": {
+            "StreamViewType": "NEW_IMAGE"
+          }
+        }
+      },
     "AspNetCoreFunction": {
       "Type": "AWS::Serverless::Function",
       "Properties": {
         "Handler": "TomatoTrackV2::TomatoTrackV2.LambdaEntryPoint::FunctionHandlerAsync",
         "Runtime": "dotnet8",
-        "CodeUri": "",
+        "CodeUri": "bin/Release/net8.0",
         "MemorySize": 512,
         "Timeout": 30,
         "Role": null,
         "Policies": [
-          "AWSLambda_FullAccess"
+            "AWSLambda_FullAccess",
+          {
+            "DynamoDBCrudPolicy" : {
+              "TableName": {
+                "Ref": "TomatoLogs"
+              }
+            }
+          }
         ],
         "Events": {
           "ProxyResource": {
@@ -34,7 +63,51 @@
           }
         }
       }
-    }
+    },
+    "TomatoDynamoDbStreamHandler": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "TomatoTrackV2StreamHandler",
+        "Runtime": "dotnet8",
+        "Handler": "TomatoTrackV2::TomatoTrackV2.Services.DynamoDbStreamHandler::Handle",
+        "CodeUri": ".",
+        "Events": {
+          "StreamEvent": {
+            "Type": "DynamoDB",
+            "Properties": {
+              "Stream": "arn:aws:dynamodb:REGION:ACCOUNT_ID:table/YourTableName/stream/*",
+              "StartingPosition": "LATEST",
+              "BatchSize": 5
+            }
+          }
+        },
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:DescribeStream",
+                  "dynamodb:GetRecords",
+                  "dynamodb:GetShardIterator",
+                  "dynamodb:ListStreams"
+                ],
+                "Resource": "arn:aws:dynamodb:ap-southeast-2:147997164060:table/TomatoLogs/stream/*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": "arn:aws:logs:*:*:*"
+              }
+            ]
+          }
+        ]
+       }
+      }
   },
   "Outputs": {
     "ApiURL": {
