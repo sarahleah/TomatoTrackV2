@@ -1,4 +1,7 @@
-﻿namespace TomatoTrackV2;
+﻿using Amazon.DynamoDBv2;
+using TomatoTrackV2.Services;
+
+namespace TomatoTrackV2;
 
 public class Startup
 {
@@ -12,6 +15,11 @@ public class Startup
     // This method gets called by the runtime. Use this method to add services to the container
     public void ConfigureServices(IServiceCollection services)
     {
+        var awsOptions = Configuration.GetAWSOptions();
+        services.AddDefaultAWSOptions(awsOptions);
+    
+        services.AddAWSService<IAmazonDynamoDB>();
+        services.AddSingleton<TomatoLogService>();
         services.AddControllers();
     }
 
