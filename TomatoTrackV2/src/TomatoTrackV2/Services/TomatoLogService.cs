@@ -16,88 +16,94 @@ public class TomatoLogService
 
     public async Task WriteLogAsync(TomatoLog log)
     {
-        var item = new Dictionary<string, AttributeValue>
-        {
-            // S means string
-            ["logId"] = new() { S = log.LogId },
-            ["timestamp"] = new() { S = log.Timestamp.ToString("o") }, // ISO 8601 format
-            ["eventType"] = new() { S = log.EventType.ToString() },
-            ["description"] = new() { S = log.Description },
-        };
+        var statement = $@"
+            INSERT INTO ""{_tableName}"" VALUE {{
+                'LogId': ?,
+                'timestamp': ?,
+                'eventType': ?,
+                'description': ?
+            }}";
 
-        var request = new PutItemRequest
+        await _dynamoDb.ExecuteStatementAsync(new ExecuteStatementRequest
         {
-            TableName = _tableName,
-            Item = item
-        };
-
-        await _dynamoDb.PutItemAsync(request);
+            Statement = statement,
+            Parameters = new List<AttributeValue>
+            {
+                new AttributeValue { S = log.LogId },
+                new AttributeValue { S = log.Timestamp.ToString("o") },
+                new AttributeValue { S = log.EventType.ToString() },
+                new AttributeValue { S = log.Description }
+            }
+        });
     }
-    
+
     public async Task<List<TomatoLog>> GetAllLogsAsync()
     {
-        var request = new ScanRequest
-        {
-            TableName = _tableName
-        };
-
-        var response = await _dynamoDb.ScanAsync(request);
         var logs = new List<TomatoLog>();
+        var statement = $@"SELECT * FROM ""{_tableName}""";
 
-        foreach (var item in response.Items)
+        var result = await _dynamoDb.ExecuteStatementAsync(new ExecuteStatementRequest
         {
-            var log = new TomatoLog
+            Statement = statement
+        });
+
+        foreach (var item in result.Items)
+        {
+            logs.Add(new TomatoLog
             {
-                LogId = item["logId"].S,
-                Timestamp = DateTime.Parse(item["timestamp"].S),
+                LogId = item["LogId"].S,
+                Timestamp = DateTime.Parse(item["timestamp"].S, null, System.Globalization.DateTimeStyles.RoundtripKind),
                 EventType = Enum.Parse<EventType>(item["eventType"].S),
                 Description = item["description"].S
-            };
-            logs.Add(log);
+            });
         }
 
         return logs;
     }
-    
+
     public async Task<List<TomatoLog>> GetLogAsync(string logId)
     {
-        var request = new QueryRequest
+        var logs = new List<TomatoLog>();
+        var statement = $@"SELECT * FROM ""{_tableName}"" WHERE LogId = ?";
+
+        var result = await _dynamoDb.ExecuteStatementAsync(new ExecuteStatementRequest
         {
-            TableName = _tableName,
-            KeyConditionExpression = "logId = :logId",
-            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            Statement = statement,
+            Parameters = new List<AttributeValue> { new AttributeValue { S = logId } }
+        });
+
+        foreach (var item in result.Items)
+        {
+            logs.Add(new TomatoLog
             {
-                { ":logId", new AttributeValue { S = logId } }
-            }
-        };
-
-        var response = await _dynamoDb.QueryAsync(request);
-
-        var logs = response.Items.Select(item => new TomatoLog
-        {
-            LogId = item["logId"].S,
-            Timestamp = DateTime.Parse(item["timestamp"].S, null, System.Globalization.DateTimeStyles.RoundtripKind),
-            EventType = Enum.Parse<EventType>(item["eventType"].S)
-        }).ToList();
+                LogId = item["LogId"].S,
+                Timestamp = DateTime.Parse(item["timestamp"].S, null, System.Globalization.DateTimeStyles.RoundtripKind),
+                EventType = Enum.Parse<EventType>(item["eventType"].S),
+                Description = item["description"].S
+            });
+        }
 
         return logs;
     }
-    
+
     public async Task<TomatoLog> UpdateLogAsync(string logId, TomatoLog log)
     {
-        var item = new Dictionary<string, AttributeValue>();
-        
-        item["logId"] = new AttributeValue { S = logId };
-        item["eventType"] = new AttributeValue { S = log.EventType.ToString() };
-        item["description"] = new AttributeValue { S = log.Description };
+        var statement = $@"
+            UPDATE ""{_tableName}""
+            SET eventType = ?, description = ?
+            WHERE LogId = ?";
 
-        var request = new PutItemRequest
+        await _dynamoDb.ExecuteStatementAsync(new ExecuteStatementRequest
         {
-            TableName = _tableName,
-            Item = item,
-        };
+            Statement = statement,
+            Parameters = new List<AttributeValue>
+            {
+                new AttributeValue { S = log.EventType.ToString() },
+                new AttributeValue { S = log.Description },
+                new AttributeValue { S = logId }
+            }
+        });
 
-        await _dynamoDb.PutItemAsync(request);
         return log;
     }
 }

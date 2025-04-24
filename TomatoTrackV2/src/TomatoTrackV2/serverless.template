@@ -44,7 +44,25 @@
                 "Ref": "TomatoLogs"
               }
             }
-          }
+          },
+           {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:ExecuteStatement",
+                    "dynamodb:BatchExecuteStatement",
+                    "dynamodb:PartiQLInsert",
+                    "dynamodb:PartiQLUpdate",
+                    "dynamodb:PartiQLDelete",
+                    "dynamodb:PartiQLSelect"
+                  ],
+                  "Resource": {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/TomatoLogs"
+                    }
+                }
+              ]
+            }
         ],
         "Events": {
           "ProxyResource": {
@@ -75,7 +93,61 @@
           "StreamEvent": {
             "Type": "DynamoDB",
             "Properties": {
-              "Stream": "arn:aws:dynamodb:REGION:ACCOUNT_ID:table/YourTableName/stream/*",
+              "Stream": {
+                "Fn::GetAtt": [
+                    "TomatoLogs",
+                    "StreamArn"
+                ]
+              },
+              "StartingPosition": "LATEST",
+              "BatchSize": 5
+            }
+          }
+        },
+        "Policies": [
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "dynamodb:DescribeStream",
+                  "dynamodb:GetRecords",
+                  "dynamodb:GetShardIterator",
+                  "dynamodb:ListStreams"
+                ],
+                "Resource": "arn:aws:dynamodb:ap-southeast-2:147997164060:table/TomatoLogs/stream/*"
+              },
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": "arn:aws:logs:*:*:*"
+              }
+            ]
+          }
+        ]
+       }
+      },
+      "TomatoDynamoDbStreamSecondHandler": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "TomatoTrackV2StreamSecondHandler",
+        "Runtime": "dotnet8",
+        "Handler": "TomatoTrackV2::TomatoTrackV2.Services.DynamoDbStreamHandler::SecondHandle",
+        "CodeUri": ".",
+        "Events": {
+          "StreamEvent": {
+            "Type": "DynamoDB",
+            "Properties": {
+              "Stream": {
+                "Fn::GetAtt": [
+                    "TomatoLogs",
+                    "StreamArn"
+                ]
+              },
               "StartingPosition": "LATEST",
               "BatchSize": 5
             }

@@ -26,4 +26,22 @@ public class DynamoDbStreamHandler
 
         await Task.CompletedTask;
     }
+    
+    public async Task SecondHandle(DynamoDBEvent dynamoEvent, ILambdaContext context)
+    {
+        foreach (var record in dynamoEvent.Records)
+        {
+            context.Logger.LogLine($"Second Handler!");
+            context.Logger.LogLine($"record: {JsonSerializer.Serialize(record)}");
+
+            if (record.Dynamodb.NewImage != null)
+            {
+                var newLog = JsonSerializer.Deserialize<TomatoLog>(
+                    record.Dynamodb.NewImage.ToJson());
+                context.Logger.LogLine($"New Log: {JsonSerializer.Serialize(newLog)}");
+            }
+        }
+
+        await Task.CompletedTask;
+    }
 }
